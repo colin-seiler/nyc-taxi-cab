@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+.venv/
+data/raw/*.parquet
+data/processed/*.parquet
+data/profile_results.txt
+data/analytics_results.txt
+data/cleaning_results.txt
