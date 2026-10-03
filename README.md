@@ -84,6 +84,14 @@ Install dependencies:
 python -m pip install -r requirements.txt
 ```
 
+## Recommended Entry Point
+
+Run the main Phase 2 processing pipeline with:
+
+```bash
+python src/pipeline.py
+```
+
 ## Running the Project
 
 ### 1. Profile the Raw Data
