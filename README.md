@@ -155,6 +155,13 @@ Run all cells in order. The notebook generates figures in:
 ```text
 figures/
 ```
+## Databricks Validation
+
+The Phase 2 cleaning and analytics workflow was also reproduced in Databricks using Apache Spark.
+
+Notebook:
+
+`notebooks/databricks_phase2.ipynb`
 
 ## Scalable Processing
 
