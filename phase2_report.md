@@ -9,7 +9,6 @@
 **Team Members:**  
 - Hwimyeong Baek  
 - Colin Seiler
-- [Team Member 3]
 
 ---
 
@@ -150,6 +149,26 @@ Pickup demand was concentrated in a relatively small number of taxi zones. Locat
 ---
 
 ## 6. First Analytics Results
+
+## Research Objective Analysis
+
+### Research Question
+How does trip distance affect taxi fare?
+
+### Data Suitability
+The dataset contains both trip distance and fare information for millions of taxi trips. After cleaning invalid and extreme records, more than 3.2 million trips remained available for analysis.
+
+### Evidence
+The correlation between trip distance and fare amount was approximately 0.947. Average fare also increased consistently across distance groups:
+
+- 0–1 mile: $7.67
+- 1–3 miles: $13.02
+- 3–5 miles: $21.90
+- 5–10 miles: $33.31
+- 10+ miles: $63.85
+
+### Conclusion
+The results show a strong positive relationship between trip distance and taxi fare. This indicates that the cleaned dataset is suitable for answering the Phase 1 research objective related to fare patterns.
 
 The cleaned dataset contained **3,242,213 trips**. The average trip distance was approximately **3.18 miles**, the average trip duration was approximately **14.72 minutes**, the average fare amount was approximately **$17.91**, and the average total amount was approximately **$26.77**.
 
