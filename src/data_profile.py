@@ -1,7 +1,6 @@
 from pathlib import Path
 import polars as pl
 
-
 RAW_DIR = Path("data/raw")
 OUTPUT_FILE = Path("data/profiles/yellow_cab_profile.parquet")
 
@@ -21,7 +20,6 @@ CATEGORICAL_COLS = [
     "store_and_fwd_flag",
 ]
 
-
 def normalize(lf: pl.LazyFrame) -> pl.LazyFrame:
     lf = lf.rename({"Airport_fee": "airport_fee"}, strict=False)
 
@@ -29,12 +27,12 @@ def normalize(lf: pl.LazyFrame) -> pl.LazyFrame:
         pl.col("VendorID").cast(pl.Int32),
         pl.col("PULocationID").cast(pl.Int32),
         pl.col("DOLocationID").cast(pl.Int32),
+        pl.col("RatecodeID").cast(pl.Int32),
         pl.col("tpep_pickup_datetime").cast(pl.Datetime("us")),
         pl.col("tpep_dropoff_datetime").cast(pl.Datetime("us")),
     ])
 
     return lf
-
 
 def profile(file: Path) -> dict:
     lf = normalize(pl.scan_parquet(file))
@@ -83,7 +81,8 @@ def profile(file: Path) -> dict:
         pl.col("trip_duration_minutes").max().alias("duration_max_minutes"),
     ]
 
-    row = lf.select(exprs).collect().to_dicts()[0]
+    row = {"file": file.name}
+    row.update(lf.select(exprs).collect().to_dicts()[0])
 
     # Category counts
     categorical_cols_present = [c for c in CATEGORICAL_COLS if c in schema.names()]
@@ -107,10 +106,8 @@ def profile(file: Path) -> dict:
     )
 
     row["duplicate_rows"] = duplicate_count or 0
-    row["file"] = file.name
 
     return row
-
 
 def main():
     # Gather Files
@@ -129,7 +126,6 @@ def main():
 
     print(f"\nProfile saved to: {OUTPUT_FILE}")
     print(f"Rows: {summary.height}, Columns: {summary.width}")
-
 
 if __name__ == "__main__":
     main()
