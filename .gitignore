@@ -220,6 +220,8 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+notebooks/cleaning.ipynb
+
 .venv/
 data/raw/*.parquet
 data/processed/*.parquet
