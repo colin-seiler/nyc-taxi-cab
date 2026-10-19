@@ -54,6 +54,9 @@ def profile(file: Path) -> dict:
         exprs.append(pl.col(col).quantile(0.25).alias(f"{col}_p25"))
         exprs.append(pl.col(col).median().alias(f"{col}_median"))
         exprs.append(pl.col(col).quantile(0.75).alias(f"{col}_p75"))
+        exprs.append(pl.col(col).quantile(0.90).alias(f"{col}_p90"))
+        exprs.append(pl.col(col).quantile(0.95).alias(f"{col}_p95"))
+        exprs.append(pl.col(col).quantile(0.99).alias(f"{col}_p99"))
         exprs.append(pl.col(col).max().alias(f"{col}_max"))
 
     # Potential data quality issues
