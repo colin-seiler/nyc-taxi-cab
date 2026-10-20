@@ -39,10 +39,10 @@ def main():
     print("=" * 60)
 
     print("\nGenerated outputs:")
-    print("- data/profile_results.txt")
+    print("- data/profiles/yellow_cab_profile.parquet")
     print("- data/cleaning_results.txt")
     print("- data/analytics_results.txt")
-    print("- data/processed/yellow_tripdata_2025-01_clean.parquet")
+    print("- data/processed/*.parquet (108 files, 2017-2025)")
 
 
 if __name__ == "__main__":

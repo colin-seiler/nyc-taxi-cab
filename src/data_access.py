@@ -26,7 +26,7 @@ def find_yellow_taxi_links(website=WEBSITE):
 
     links = {}
     for a in soup.find_all('a', href=True):
-        href = a['href']
+        href = a['href'].strip()
         if LINK_PATTERN.search(href):
             month = re.search(r'(\d{4}-\d{2})', href).group(1)
             links[month] = urljoin(website, href)

@@ -28,6 +28,7 @@ def normalize(lf: pl.LazyFrame) -> pl.LazyFrame:
         pl.col("PULocationID").cast(pl.Int32),
         pl.col("DOLocationID").cast(pl.Int32),
         pl.col("RatecodeID").cast(pl.Int32),
+        pl.col("passenger_count").cast(pl.Int32),
         pl.col("tpep_pickup_datetime").cast(pl.Datetime("us")),
         pl.col("tpep_dropoff_datetime").cast(pl.Datetime("us")),
     ])

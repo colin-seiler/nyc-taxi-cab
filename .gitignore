@@ -230,3 +230,4 @@ data/analytics_results.txt
 data/cleaning_results.txt
 data/profiles/*
 data/*
+data.nosync/*
