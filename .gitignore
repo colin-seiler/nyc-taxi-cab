@@ -1,5 +1,8 @@
 # Local working notes
 notes.md
+notes_presentation.md
+presentation_outline.md
+plots/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -221,6 +224,7 @@ __marimo__/
 .streamlit/secrets.toml
 
 notebooks/cleaning.ipynb
+notebooks/*.ipynb
 
 .venv/
 data/raw/*.parquet
@@ -231,3 +235,4 @@ data/cleaning_results.txt
 data/profiles/*
 data/*
 data.nosync/*
+data/samples/yellow_tripdata_sample.parquet
