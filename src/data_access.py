@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
-YEARS = ['2019', '2020', '2021', '2022', '2023', '2024', '2025']
+YEARS = ['2025']
 
 YELLOW_RAW_DIR = Path('data/raw/yellow')
 RIDESHARE_RAW_DIR = Path('data/raw/rideshare')
@@ -89,7 +89,8 @@ def main(years=YEARS, yellow=False, rideshare=False):
 
     if yellow:
         links = find_links(LINK_PATTERN_YELLOW)
-        links.pop('2019-01', None)
+        if '2019' in years:
+            links.pop('2019-01', None)
         download_years(links, years, YELLOW_RAW_DIR)
 
     if rideshare:

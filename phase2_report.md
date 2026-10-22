@@ -2,7 +2,7 @@
 
 ## 1. Title and Team Members
 
-**Project Title:** NYC Yellow Taxi Trip Analysis  
+**Project Title:** NYC Yellow Taxi Trip and Rideshare Analysis  
 **Course:** EAS 587 – Data-Intensive Computing  
 **Phase:** Phase 2 – Data Cleaning, Processing, and Exploratory Data Analysis  
 
@@ -14,23 +14,24 @@
 
 ## 2. Executive Summary
 
-In Phase 2, we cleaned and analyzed the January 2025 NYC Yellow Taxi trip dataset. The raw dataset contained 3,475,226 records and 20 columns. We used Polars with lazy execution to support scalable processing and avoid relying only on loading the full raw dataset into memory at once. After removing records with invalid trip times, nonpositive or extreme trip distances, unreasonable trip durations, and extreme fare values, 3,242,213 records remained. This means that about 6.70% of the original records were removed. The cleaned dataset showed clear patterns in taxi demand by hour, day, trip distance, and pickup area. Longer trips had much higher average fares, and taxi demand was lowest during early morning hours and highest during the late afternoon and early evening.
+In Phase 2, we cleaned and analyzed the complete NYC Yellow Taxi and High-Volume For-Hire Vehicle (Uber and Lyft) trip datasets available to the project, spanning February 2019 through December 2025. This is 83 monthly datasets in total. We used Polars with lazy execution to process both datasets at scale: each monthly file is cleaned independently, month by month, with Polars' streaming engine used when collecting and writing each cleaned file, rather than loading the full raw data into memory at once. The raw Yellow Taxi data contained 300,313,873 records; after removing records with invalid trip times, nonpositive or extreme trip distances, unreasonable trip durations, and extreme fare values, 289,073,438 records remained and around 3.74% were removed. The raw rideshare data contained 1,460,229,131 Uber/Lyft records; after the equivalent cleaning rules, 1,457,907,007 records remained with only 0.16% removed. The cleaned datasets showed clear and consistent patterns in demand by hour, day, trip distance, and pickup location across both services, along with a pronounced multi-year dip and recovery in trip volume around the 2020 covid pandemic period. Longer trips had much higher average fares in both datasets, with a clear correlation on fare cost and distance, and demand for both Yellow Taxi and rideshare trips was lowest during early morning hours and highest during the late afternoon and early evening.
 
 ---
 
 ## 3. Connection to Phase 1
 
-In Phase 1, our project focused on using NYC taxi trip data to study large-scale transportation patterns. Our main goal was to understand how trip demand, trip distance, fare amount, time of day, and pickup location are related.
+In Phase 1, our project focused on using the data to study large-scale transportation patterns. Our main goal was to understand how trip demand, trip distance, fare amount, time of day, and pickup location are related.
 
-Phase 2 continues this plan by preparing the raw taxi data for analysis and producing the first quantitative results. The main research questions explored in this phase are:
+Phase 2 continues this plan by preparing the raw taxi and rideshare data for analysis and producing the first quantitative results. What began as single-month analysis has grown into a scalable, command-line-driven pipeline that processes the full available history (February 2019 – December 2025) for both Yellow Taxi and rideshare trips. The main research questions explored in this phase are:
 
-1. How does taxi demand change by hour of day and day of week?
+1. How does taxi and rideshare demand change by hour of day and day of week?
 2. How strongly are trip distance and fare amount related?
 3. What do the distributions of trip distance and trip duration look like?
-4. Which pickup locations have the highest taxi activity?
+4. Which pickup locations have the highest activity?
 5. How much does average fare change across trip-distance groups?
+6. How do Yellow Taxi and rideshare patterns compare to one another, and how have they evolved year over year?
 
-The overall direction from Phase 1 did not change, but Phase 2 helped us identify which variables are most useful for later modeling in Phase 3.
+The overall direction from Phase 1 did not change, but Phase 2 helped us identify which variables are most useful for later modeling in Phase 3, and comparing Yellow Taxi to rideshare highlighted how differently the two services behave in demand, pricing, and year-over-year growth.
 
 ---
 
@@ -38,147 +39,194 @@ The overall direction from Phase 1 did not change, but Phase 2 helped us identif
 
 ### 4.1 Data Profiling
 
-The raw January 2025 Yellow Taxi dataset contained **3,475,226 rows and 20 columns**. Initial profiling included schema inspection, null counts, unique-value counts, duplicate detection, numeric summaries, and category counts.
+Profiling covered the full history available to the project: 300,313,873 raw Yellow Taxi rows and 1,460,229,131 raw rideshare rows, each spanning 83 monthly Parquet files from February 2019 to December 2025 and 20+ columns. Initial profiling included schema inspection, null counts, unique-value counts, duplicate detection, numeric summaries (including p25/median/p75/p90/p95/p99), and category counts, computed independently for every monthly file and then combined.
 
-Several data-quality issues were found. For example, `passenger_count` contained a large number of missing values. The raw data also contained negative fare values, zero-distance trips, extremely large trip distances, and invalid trip times where the dropoff time was earlier than or equal to the pickup time.
+Several data-quality issues were found in both datasets. For example, `passenger_count` was missing for roughly 17.4 million Yellow Taxi trips (the rideshare schema does not include a `passenger_count` field at all). Both datasets also contained negative fare values, zero-distance trips, extremely large trip distances, and invalid trip times where the dropoff time was earlier than or equal to the pickup time.
 
-No exact duplicate rows were found.
+No exact duplicate rows were found in either dataset.
 
 ### 4.2 Cleaning Rules
 
-We applied the following rules:
+We applied the following rules to every monthly file, restricted to that file's own pickup year-month:
 
-- Keep only trips with pickup times in January 2025.
-- Keep trip distances greater than 0 and less than or equal to 100 miles.
-- Keep trip durations between 1 and 240 minutes.
+- Keep only trips with pickup times inside the file's own year-month.
+- Keep trip distances greater than 0 and less than or equal to 120 miles.
+- Keep trip durations between 1 and 360 minutes.
 - Require dropoff time to be later than pickup time.
-- Keep fare amounts between $0 and $500.
-- Keep total amounts between $0 and $600.
+- Yellow Taxi: keep fare amounts between $0 and $1,000, and total amounts between $0 and $1,000.
+- Rideshare: keep only Uber (HV0003) and Lyft (HV0005) trips, with base passenger fare between $0 and $1,000.
 
 Missing values in `passenger_count`, `RatecodeID`, and `store_and_fwd_flag` were retained rather than dropping the entire trip record. These columns are not required for every analysis, so removing all rows with missing values would discard too much otherwise useful data.
 
-After cleaning, **3,242,213 records remained**, and **233,013 records were removed**, equal to approximately **6.70%** of the original dataset.
+After cleaning, we removed 11,240,435 records from the yellow taxi data and 2,322,124 from the rideshare records, about 3.74% and 0.16% respectively. Rideshare trips were removed far less often, largely because Uber/Lyft's own platform-level validation already filters out most of the invalid trips that still appear in the raw Yellow Taxi feed.
 
 ### 4.3 Feature Engineering
 
-We created several derived fields for analysis:
+We created several derived fields that are self explanatory for analysis, all stemming from the given pickup and dropoff times:
 
 - `trip_duration_minutes`
 - `pickup_hour`
 - `pickup_weekday`
 - `pickup_date`
 
-These features made it easier to study hourly, weekday, daily, and duration-based patterns.
+These features made it easier to study hourly, weekday, daily, and duration-based patterns for both datasets.
 
 ### 4.4 Scalable Processing Strategy
 
-The raw Parquet file was processed using **Polars lazy scanning**. This approach allowed filtering and transformation steps to be defined before execution. The cleaned dataset was then written to:
+Polars lazy scanning is the main process we used and the real hero of the project. Lazy scanning allows us to describe the filters, columns, and transformations we want before any data is actually read, instead of loading everything first and then working on it. Polars takes that description and figures out the most efficient way to satisfy it. It can skip whole sections of a file that can't contain matching rows, avoid reading columns we never use, and reorder steps for efficiency, all before execution starts. The data isn't touched until we actually ask for the result.
 
-`data/processed/yellow_tripdata_2025-01_clean.parquet`
+This is a more specific and more optimizable process than how pandas typically works around data too large for memory, which is to read the data in fixed-size chunks and loop over them in our own code. Chunking still reads and fully loads each chunk as-is, with no way to describe ahead of time which columns or rows are actually needed, so the pruning that lazy scanning gets for free has to be done by hand, chunk by chunk. This does require a real understanding of your schema prior to processing.
 
-This approach is more scalable than relying only on a standard full in-memory pandas workflow and is suitable for extending the project to multiple months or much larger taxi datasets later.
+Cleaning is done month by month. Each of the 83 monthly Parquet files per dataset is scanned independently with Polars lazy scanning, filtered and feature-engineered on its own, and then collected and written out before the next file is processed. This per-file approach is done via `src/data_cleaning.py`, and it is what let the same cleaning logic scale from one month of Yellow Taxi data to 83 months of both services without being rewritten. The cleaned files were written to:
+
+```text
+data/processed/yellow/
+data/processed/rideshare/
+```
+
+Once every month is cleaned, `src/analytics.py` opens the full set of cleaned files for a dataset as a single lazy frame (via glob) and computes the hourly, weekday, distance-group, and correlation aggregations across the combined history. Every figure and table in Sections 5 and 6 of this report was likewise computed by scanning all cleaned monthly files together — no row sampling is used anywhere in this report; even the distribution and density figures are built from binned aggregate counts over the complete dataset.
+
+This is substantially more scalable than a standard full in-memory pandas workflow. The project's command-line pipeline (`src/pipeline.py`) now lets any combination of dataset and year be processed with the same scripts, which is what made it practical to extend this analysis from a single month of Yellow Taxi data to the full available history of both services.
 
 ---
 
 ## 5. Exploratory Data Analysis
 
-### 5.1 Taxi Trips by Pickup Hour
+Each figure below is shown for both datasets side by side so Yellow Taxi and rideshare patterns can be compared directly. Unless noted otherwise, figures use the full cleaned history (February 2019 – December 2025) for each dataset.
 
-![Taxi Trips by Pickup Hour](figures/trips_by_hour.png)
+### 5.1 Trips by Pickup Hour
 
-**Figure 1. Taxi trip counts by pickup hour.**
+![Yellow Taxi Trips by Pickup Hour](figures/yellow_trips_by_hour.png)
+![Rideshare Trips by Pickup Hour](figures/rideshare_trips_by_hour.png)
 
-Taxi demand was lowest during the early morning hours, especially around 3 AM to 5 AM. Demand increased strongly after 6 AM and continued rising through the day. The highest trip volume appeared around 5 PM to 6 PM, suggesting a strong evening travel peak.
+**Figure 1. Trip counts by pickup hour, Yellow Taxi (top) and rideshare (bottom).**
 
-### 5.2 Taxi Trips by Weekday
+Demand was lowest during the early morning for both services, bottoming out at 4 AM and peaking at 6 PM. 
 
-![Taxi Trips by Weekday](figures/trips_by_weekday.png)
+### 5.2 Trips by Weekday
 
-**Figure 2. Taxi trip counts by weekday.**
+![Yellow Taxi Trips by Weekday](figures/yellow_trips_by_weekday.png)
+![Rideshare Trips by Weekday](figures/rideshare_trips_by_weekday.png)
 
-Trip volume was lowest on Monday and increased through the middle of the week. Thursday had the highest number of trips, while Saturday and Sunday were lower than the main weekday peak. This suggests that weekday travel demand is an important part of Yellow Taxi activity.
+**Figure 2. Trip counts by weekday, Yellow Taxi (top) and rideshare (bottom).**
 
-### 5.3 Daily Taxi Trips in January 2025
+Thursday was the busiest day for Yellow Taxi and Sunday the slowest, consistent with a weekday-commute-oriented ridership. Rideshare instead peaked on Saturday and was slowest on Monday, reflecting a more weekend and leisure oriented usage pattern for Uber and Lyft.
 
-![Daily Yellow Taxi Trips](figures/daily_trip_counts.png)
+### 5.3 Daily Trips (2019–2025)
 
-**Figure 3. Daily taxi trip counts during January 2025.**
+![Daily Yellow Taxi Trips](figures/yellow_daily_trip_counts.png)
+![Daily Rideshare Trips](figures/rideshare_daily_trip_counts.png)
 
-Daily taxi demand varied noticeably during the month instead of remaining constant. Some days exceeded 120,000 trips, while other days fell below 90,000. These changes may be related to weekday effects, holidays, weather, or other external conditions, which could be investigated later.
+**Figure 3. Daily trip counts, Yellow Taxi (top) and rideshare (bottom).**
+
+The daily series makes the project's expanded scale especially visible. Both datasets show a sharp, multi-month collapse in trip volume beginning in March 2020 at the onset of the COVID-19 pandemic. Yellow Taxi volume shows a general collapse following the pandemic with a clear failure to fully recover. Rideshare meanwhile appears to have recovered fully. In both cases the series seem to show consistent dips at repeated points year over year. With that in mind it will be worth performing some time series analysis to try and understand when these dips happen.
 
 ### 5.4 Distribution of Trip Distance
 
-![Trip Distance Distribution](figures/trip_distance_distribution.png)
+![Yellow Taxi Trip Distance Distribution](figures/yellow_trip_distance_distribution.png)
+![Rideshare Trip Distance Distribution](figures/rideshare_trip_distance_distribution.png)
 
-**Figure 4. Distribution of trip distance based on a reproducible sample of 200,000 trips.**
+**Figure 4. Distribution of trip distance as a percentage of each dataset's own trips, Yellow Taxi (top) and rideshare (bottom).**
 
-The trip-distance distribution is strongly right-skewed. Most taxi trips are relatively short, with the largest concentration occurring below approximately 3 miles. Longer trips occur much less frequently, although a clear tail extends toward longer-distance travel.
+Values are shown as a percentage of each dataset's own trips rather than raw counts, since the rideshare dataset has roughly five times as many trips as Yellow Taxi and raw counts would make the two distributions impossible to compare on the same chart. Both trip-distance distributions are strongly right-skewed. Most trips are relatively short, with the largest concentration under approximately 3 miles for Yellow Taxi and a slightly wider spread for rideshare, which serves more of the outer boroughs. Longer trips occur much less frequently in both datasets, though a clear tail extends toward longer-distance travel.
 
 ### 5.5 Distribution of Trip Duration
 
-![Trip Duration Distribution](figures/trip_duration_distribution.png)
+![Yellow Taxi Trip Duration Distribution](figures/yellow_trip_duration_distribution.png)
+![Rideshare Trip Duration Distribution](figures/rideshare_trip_duration_distribution.png)
 
-**Figure 5. Distribution of trip duration based on a reproducible sample of 200,000 trips.**
+**Figure 5. Distribution of trip duration, normalized, Yellow Taxi (top) and rideshare (bottom)**
 
-Trip duration is also right-skewed. Most trips are completed within a relatively short period, while long-duration trips form a much smaller tail. This pattern supports the use of robust summaries such as the median in addition to the mean.
+As in Figure 4, values are shown as a percentage of each dataset's own trips so the two services can be compared directly despite their very different trip volumes. Trip duration is also right-skewed for both services. Most trips are completed within a relatively short period, while long-duration trips form a much smaller tail. This pattern supports the use of robust summaries such as the median in addition to the mean.
 
 ### 5.6 Trip Distance and Fare Amount
 
-![Trip Distance vs Fare](figures/distance_vs_fare_hexbin.png)
+![Yellow Taxi: Trip Distance vs Fare](figures/yellow_distance_vs_fare_hexbin.png)
+![Rideshare: Trip Distance vs Fare](figures/rideshare_distance_vs_fare_hexbin.png)
 
-**Figure 6. Density-based view of trip distance and fare amount using a 200,000-trip sample.**
+**Figure 6. Density-based view of trip distance and fare amount, Yellow Taxi (top) and rideshare (bottom).**
 
-Fare amount generally increases as trip distance increases. The relationship is not perfectly uniform because fares can also depend on time, surcharges, airport trips, rate codes, and other factors. Still, the overall positive relationship is strong and is also supported by the calculated correlation.
+Fare amount generally increases as trip distance increases in both datasets. The relationship is not perfectly uniform because fares can also depend on time, surcharges, airport trips, rate codes, and (for rideshare) surge pricing. Still, the overall positive relationship is strong in both datasets and is confirmed by the correlation results in Section 6.
 
 ### 5.7 Average Fare by Trip Distance
 
-![Average Fare by Trip Distance](figures/avg_fare_by_distance.png)
+![Average Yellow Taxi Fare by Trip Distance](figures/yellow_avg_fare_by_distance.png)
+![Average Rideshare Fare by Trip Distance](figures/rideshare_avg_fare_by_distance.png)
 
-**Figure 7. Average fare by trip-distance group.**
+**Figure 7. Average fare by trip-distance group, Yellow Taxi (top) and rideshare (bottom).**
 
-Average fare increased consistently across distance groups. Trips between 0 and 1 mile had an average fare of about **$7.67**, while trips longer than 10 miles had an average fare of about **$63.85**. This result shows that trip distance is one of the strongest variables related to fare amount.
+Average fare increased consistently across distance groups for both services:
+
+| Distance Group | Yellow Taxi Avg. Fare | Rideshare Avg. Base Fare |
+| --- | --- | --- |
+| 0–1 mile | $6.69 | $9.17 |
+| 1–3 miles | $11.45 | $13.38 |
+| 3–5 miles | $19.14 | $20.96 |
+| 5–10 miles | $29.28 | $29.91 |
+| 10+ miles | $55.76 | $58.48 |
+
+Trip distance is one of the strongest variables related to fare amount in both datasets, and rideshare base fares run consistently above Yellow Taxi metered fares at every distance band except for the 5-10 mile mark.
 
 ### 5.8 Top Pickup Locations
 
-![Top Pickup Locations](figures/top_pickup_locations.png)
+![Top Yellow Taxi Pickup Locations](figures/yellow_top_pickup_locations.png)
+![Top Rideshare Pickup Locations](figures/rideshare_top_pickup_locations.png)
 
-**Figure 8. Top 10 pickup location IDs by trip count.**
+**Figure 8. Top 10 pickup zones, normalized, Yellow Taxi (top) and rideshare (bottom).**
 
-Pickup demand was concentrated in a relatively small number of taxi zones. Location ID 161 had the highest trip count, followed by 237 and 236. In future work, these location IDs can be joined with the official NYC Taxi Zone lookup table so that the results can be shown using neighborhood or zone names instead of numeric IDs.
+Pickup demand is concentrated in a relatively small number of taxi zones for both services, but the top zones differ by service. Values are shown as a percentage of each dataset's own trips so the two services can be compared directly. For Yellow Taxi, a large amount of its pickups are centered in central Manhattan zones, alongside JFK Airport in 4th place (3.95%). For rideshare, the airports of LaGuardia and JFK take the first two spots while Crown Heights North, a neighbordhood in Brookly, comes in third. This shows a much larger airport and outer-borough presence than Yellow Taxi. Brooklyn zones (Crown Heights North, Bushwick South, East New York) appear in rideshare's top 10 but not Yellow Taxi's at all. Rideshare's top zones also account for a smaller share of its (much larger) total trip volume than Yellow Taxi's top zones do, reflecting a more spread-out pickup pattern across the city.
 
 ---
 
 ## 6. First Analytics Results
 
-## Research Objective Analysis
+### Research Objective Analysis
 
 ### Research Question
-How does trip distance affect taxi fare?
+How does trip distance affect taxi and rideshare fare, and how do the two services compare?
 
 ### Data Suitability
-The dataset contains both trip distance and fare information for millions of taxi trips. After cleaning invalid and extreme records, more than 3.2 million trips remained available for analysis.
+The datasets contain both trip distance and fare information for hundreds of millions of Yellow Taxi trips and over a billion rideshare trips.
 
 ### Evidence
-The correlation between trip distance and fare amount was approximately 0.947. Average fare also increased consistently across distance groups:
 
-- 0–1 mile: $7.67
-- 1–3 miles: $13.02
-- 3–5 miles: $21.90
-- 5–10 miles: $33.31
-- 10+ miles: $63.85
+![Correlation Structure: Yellow Taxi vs. Rideshare](figures/result_correlation_structure.png)
+
+**Figure 9. Pearson correlation between key trip variables, Yellow Taxi vs. rideshare.**
+
+| Relationship | Yellow Taxi | Rideshare |
+| --- | --- | --- |
+| Distance vs. Fare | 0.91 | 0.85 |
+| Distance vs. Duration | 0.78 | 0.79 |
+| Fare vs. Tip | 0.57 | 0.38 |
+| Distance vs. Tip | 0.53 | 0.30 |
+
+Distance is the strongest predictor of fare in both datasets, but the gap between the two services is largest in the tipping-related rows. Fare-vs-tip correlation is 0.57 for Yellow Taxi versus 0.38 for rideshare, and distance-vs-tip is 0.53 versus 0.30. Distance-vs-duration is nearly identical between the two (0.78 vs. 0.79), which makes sense since both are physically constrained by traffic and road distance regardless of which app or meter is running.
 
 ### Conclusion
-The results show a strong positive relationship between trip distance and taxi fare. This indicates that the cleaned dataset is suitable for answering the Phase 1 research objective related to fare patterns.
+The results show a strong positive relationship between trip distance and fare in both datasets, with Yellow Taxi showing a slightly stronger distance–fare correlation (0.91 vs. 0.85) and a notably stronger fare–tip relationship (0.57 vs. 0.38). This indicates that both cleaned datasets are suitable for answering the Phase 1 research objective related to fare patterns, and that tipping behavior differs meaningfully between the two services.
 
-The cleaned dataset contained **3,242,213 trips**. The average trip distance was approximately **3.18 miles**, the average trip duration was approximately **14.72 minutes**, the average fare amount was approximately **$17.91**, and the average total amount was approximately **$26.77**.
+### Multi-Year Trends
 
-One of the strongest results was the relationship between trip distance and fare amount. The correlation between these variables was approximately **0.947**, indicating a strong positive relationship after extreme fare outliers were removed. Trip distance was also strongly related to trip duration, with a correlation of approximately **0.798**.
+![Rideshare vs. Yellow Taxi: Trip Volume by Year](figures/result_trip_volume_by_year.png)
 
-The grouped distance analysis showed the same pattern. Average fare increased from about **$7.67** for trips of 0–1 mile to approximately **$13.02** for 1–3 miles, **$21.90** for 3–5 miles, **$33.31** for 5–10 miles, and **$63.85** for trips longer than 10 miles.
+**Figure 10. Annual trip volume, Yellow Taxi vs. rideshare, 2019–2025.**
 
-The hourly analysis showed a strong time-of-day pattern. Taxi demand was very low during the early morning and increased steadily through the day. The late afternoon and early evening had the highest trip counts.
+Both services lost more than two-thirds of their trip volume in 2020, but rideshare recovered faster and has grown every year since, reaching 243,513,002 trips in 2025 versus 216,992,181 in 2019. Yellow Taxi has only partially recovered, reaching 44,025,133 trips in 2025 versus 75,584,188 in 2019, almost half of it's pre-pandemic totals. It will be worth examining total subway trip counts against this data to see if more New Yorkers are shifting towards the subway. 
 
-The weekday analysis also showed clear differences. Thursday had the largest number of trips, while Monday had the smallest weekday total in this dataset. These results suggest that both hour and weekday should be useful features in later demand modeling.
+![Average Tip by Year](figures/result_avg_tip_by_year.png)
+
+**Figure 11. Average tip by year, Yellow Taxi vs. rideshare, 2019–2025.**
+
+Average Yellow Taxi tips rose from about $2.22 in 2019 to a peak of about $3.59 in 2023 before easing to about $3.04 in 2025. Average rideshare tips were much lower throughout, rising steadily from about $0.62 in 2019 to about $1.19 in 2025.
+
+![Base Fare per Mile by Year](figures/result_fare_per_mile_by_year.png)
+
+**Figure 12. Base fare per mile by year, Yellow Taxi vs. rideshare, 2019–2025.**
+
+Base fare per mile for both services rose noticeably from 2019 to 2025. Rideshare's fare per mile increased steadily throughout the period, while Yellow Taxi's fare per mile was comparatively flat through 2022 before rising sharply in 2023, after which it has priced above rideshare on a per-mile basis.
+
+These research questions and findings suggest that both hour, weekday, and service type should be useful features in later demand and pricing modeling.
 
 ---
 
@@ -186,15 +234,15 @@ The weekday analysis also showed clear differences. Thursday had the largest num
 
 ### Dead End 1: Using Raw Fare Values Without Additional Outlier Filtering
 
-Our first cleaning version removed negative fare values but did not remove extremely large positive fare amounts. After this step, the maximum fare was still more than $800,000, and the correlation between trip distance and fare amount was only about 0.03. This result did not match the clear grouped fare pattern and showed that a small number of extreme values were distorting the analysis.
+Our first cleaning version removed negative fare values but did not remove extremely large positive fare amounts. Before this fix, a handful of extreme values (fares in the hundreds of thousands of dollars) were enough to collapse the distance–fare correlation to near zero across a sample file, even though the grouped average-fare-by-distance pattern was clearly increasing. This mismatch showed that a small number of extreme values were distorting the correlation statistic.
 
-We changed the cleaning rule to keep fare amounts at or below $500 and total amounts at or below $600. After this adjustment, the distance-fare correlation increased to about 0.947 and the result became much more consistent with the visual patterns.
+We changed the cleaning rule to keep fare amounts at or below $1,000 and total amounts (Yellow Taxi) or base passenger fare (rideshare) at or below $1,000. After this adjustment, the distance–fare correlation across the full cleaned history rose to about 0.91 for Yellow Taxi and 0.85 for rideshare, both consistent with the visual patterns in Section 5.6 and Section 5.7.
 
 ### Dead End 2: Treating All Missing Passenger Information as a Reason to Drop a Trip
 
-A large number of records had missing `passenger_count` values. Dropping every record with missing passenger information would have removed hundreds of thousands of trips, even though those trips still contained useful information such as distance, fare, pickup time, and location.
+Across the full Yellow Taxi history, roughly 17.4 million records had missing `passenger_count` values. Dropping every record with missing passenger information would have removed millions of trips, even though those trips still contained useful information such as distance, fare, pickup time, and location.
 
-Instead, we retained these records and excluded the missing field only from analyses where passenger count was required. This preserved much more usable data.
+Instead, we retained these records and excluded the missing field only from analyses where passenger count was required. This preserved much more usable data. (Rideshare trips do not include a `passenger_count` field at all, so this issue is specific to Yellow Taxi.)
 
 ---
 
@@ -202,7 +250,7 @@ Instead, we retained these records and excluded the missing field only from anal
 
 ### Polars Instead of a Standard Full pandas Workflow
 
-We chose Polars and lazy Parquet scanning because the project is intended to demonstrate data-intensive processing. Lazy execution also makes the same workflow easier to scale when additional months of data are added.
+We chose Polars and lazy Parquet scanning because the project is intended to demonstrate data-intensive processing. Lazy execution, combined with Polars' streaming engine for the per-file cleaning writes and for this report's full-history aggregations, is what made it practical to scale the same month-by-month cleaning logic from a single month of Yellow Taxi data to 83 months of both Yellow Taxi and rideshare data (over 1.7 billion raw rows combined) without rewriting it.
 
 ### Retaining Missing Categorical Values
 
@@ -210,29 +258,33 @@ Instead of dropping every record with a missing value, we kept rows where missin
 
 ### Outlier Thresholds
 
-We used explicit thresholds for distance, trip duration, fare amount, and total amount. The goal was to remove clearly unrealistic records while keeping normal long-distance or high-fare trips. We compared the analytics before and after this filtering and found that extreme fare values had a large effect on correlation results.
+We used explicit thresholds for distance (≤120 miles), trip duration (1–360 minutes), fare amount, and total amount (≤$1,000). The goal was to remove clearly unrealistic records while keeping normal long-distance or high-fare trips. We compared the analytics before and after this filtering and found that extreme fare values had a large effect on correlation results.
 
-### Sampling for Dense Visualizations
+### Binned Aggregation for Dense Visualizations
 
-For trip-distance and trip-duration distributions and the distance-fare relationship, we used a fixed random sample of 200,000 records with `seed=42`. Plotting all 3.24 million trips was unnecessary for these visualizations and would make rendering slower without improving interpretation.
+Plotting all 289 million Yellow Taxi trips or 1.46 billion rideshare trips as individual points was not feasible for the distance, duration, and distance–fare figures. Instead, each value was assigned to a bin (or, for the distance–fare figure, a 2D grid cell), and Polars computed the count per bin across the complete dataset. Matplotlib then rendered those exact bin counts, so every figure in this report reflects the full dataset rather than a subset of it.
 
 ---
 
 ## 9. Reproducibility Statement
 
-The Phase 2 workflow is organized so that the raw data can be profiled, cleaned, processed, and analyzed using documented Python scripts and the Phase 2 notebook.
+The Phase 2 workflow is organized so that the raw data can be downloaded, profiled, cleaned, processed, and analyzed using documented, command-line-driven Python scripts.
 
 The main files are:
 
+- `src/data_access.py`
 - `src/data_profile.py`
 - `src/data_cleaning.py`
 - `src/analytics.py`
-- `notebooks/phase2_analysis.ipynb`
-- `data/processed/yellow_tripdata_2025-01_clean.parquet`
+- `src/pipeline.py`
+- `data/processed/yellow/*.parquet`
+- `data/processed/rideshare/*.parquet`
 
-All random sampling in the notebook uses a fixed seed of `42`. The notebook was executed from beginning to end using **Run All** without errors.
+Every figure and statistic in this report is computed from the complete cleaned dataset for each service. The full cleaning and analytics workflow can be reproduced end-to-end with `python src/pipeline.py --yellow_taxi --rideshare`.
 
-**Before final submission, the team will also perform a dry run in a fresh environment or on a teammate's machine and update this section to confirm that the full workflow completed successfully.**
+We have run and processed this cleanly, and it was reproducible in an untouched system.
+
+Considering the ridiculous amount of storage space required, the current python files have been edited to only run on 2025 when downloaded and processed on a local computer. This was a design choice so that our professor or grader would not have to make that much room within their system. If you would like to run it on all files, you can edit the `YEARS` variable and add in the years from 2019 to 2025 as a list.
 
 ---
 
