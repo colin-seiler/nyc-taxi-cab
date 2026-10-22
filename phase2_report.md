@@ -22,7 +22,7 @@ In Phase 2, we cleaned and analyzed the complete NYC Yellow Taxi and High-Volume
 
 In Phase 1, our project focused on using the data to study large-scale transportation patterns. Our main goal was to understand how trip demand, trip distance, fare amount, time of day, and pickup location are related.
 
-Phase 2 continues this plan by preparing the raw taxi and rideshare data for analysis and producing the first quantitative results. What began as single-month analysis has grown into a scalable, command-line-driven pipeline that processes the full available history (February 2019 – December 2025) for both Yellow Taxi and rideshare trips. The main research questions explored in this phase are:
+Phase 2 continues this plan by preparing the raw taxi and rideshare data for analysis and producing the first quantitative results. This began as single-month analysis and has grown into a scalable, command-line-driven pipeline that processes the full available history (February 2019 – December 2025) for both Yellow Taxi and rideshare trips. The main research questions explored in this phase are:
 
 1. How does taxi and rideshare demand change by hour of day and day of week?
 2. How strongly are trip distance and fare amount related?
